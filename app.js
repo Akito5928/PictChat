@@ -3,12 +3,17 @@ const users = {};
 let ownerID = null;
 let myName = "";
 
-// rid抽出
+// ------------------------------
+// rid 抽出（強化版）
+// ------------------------------
 function extractRid(url) {
-  return url.split("#!/")[1];
+  const m = url.match(/#!\/([0-9a-fA-F\-]{36})/);
+  return m ? m[1] : null;
 }
 
+// ------------------------------
 // 通信ログ
+// ------------------------------
 function logWS(text) {
   const div = document.getElementById("wslog");
   const time = new Date().toLocaleTimeString();
@@ -16,14 +21,18 @@ function logWS(text) {
   div.scrollTop = div.scrollHeight;
 }
 
+// ------------------------------
 // チャット表示
+// ------------------------------
 function addChat(name, text) {
   const div = document.getElementById("chat");
   div.innerHTML += `<div><b>${name}:</b> ${text}</div>`;
   div.scrollTop = div.scrollHeight;
 }
 
+// ------------------------------
 // 参加者表示
+// ------------------------------
 function renderUsers() {
   const div = document.getElementById("users");
   div.innerHTML = "";
@@ -34,11 +43,20 @@ function renderUsers() {
   }
 }
 
+// ------------------------------
 // 接続
+// ------------------------------
 document.getElementById("connectBtn").onclick = () => {
   const url = document.getElementById("roomUrl").value;
   myName = document.getElementById("myName").value || "名無し";
+
   const rid = extractRid(url);
+  logWS("RID = " + rid);
+
+  if (!rid) {
+    logWS("❌ rid が抽出できませんでした。URL を確認してください。");
+    return;
+  }
 
   ws = new WebSocket(
     `wss://wl.pictsense.com/socket.io/?rid=${rid}&EIO=4&transport=websocket`
@@ -52,24 +70,32 @@ document.getElementById("connectBtn").onclick = () => {
     const data = e.data;
     logWS(`← ${data}`);
 
+    // ------------------------------
     // 0{...} → handshake
+    // ------------------------------
     if (data.startsWith("0")) return;
 
+    // ------------------------------
     // 40 → transport ready
+    // ------------------------------
     if (data === "40") {
       logWS("→ setName: " + myName);
       ws.send(`42["setName","${myName}"]`);
       return;
     }
 
+    // ------------------------------
     // ping/pong
+    // ------------------------------
     if (data === "2") {
       ws.send("3");
       logWS("→ pong");
       return;
     }
 
+    // ------------------------------
     // 42[...] イベント
+    // ------------------------------
     if (!data.startsWith("42")) return;
 
     const payload = JSON.parse(data.slice(2));
@@ -116,7 +142,9 @@ document.getElementById("connectBtn").onclick = () => {
   };
 };
 
+// ------------------------------
 // チャット送信
+// ------------------------------
 document.getElementById("sendBtn").onclick = () => {
   const text = document.getElementById("msg").value;
   if (!ws || ws.readyState !== 1) return;
