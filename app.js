@@ -8,6 +8,14 @@ function extractRid(url) {
   return url.split("#!/")[1];
 }
 
+// 通信ログ
+function logWS(text) {
+  const div = document.getElementById("wslog");
+  const time = new Date().toLocaleTimeString();
+  div.innerHTML += `<div>[${time}] ${text}</div>`;
+  div.scrollTop = div.scrollHeight;
+}
+
 // チャット表示
 function addChat(name, text) {
   const div = document.getElementById("chat");
@@ -26,7 +34,7 @@ function renderUsers() {
   }
 }
 
-// 接続ボタン
+// 接続
 document.getElementById("connectBtn").onclick = () => {
   const url = document.getElementById("roomUrl").value;
   myName = document.getElementById("myName").value || "名無し";
@@ -37,23 +45,19 @@ document.getElementById("connectBtn").onclick = () => {
   );
 
   ws.onopen = () => {
-    console.log("WebSocket connected");
+    logWS("→ WebSocket connected");
   };
 
   ws.onmessage = (e) => {
     const data = e.data;
+    logWS(`← ${data}`);
 
-    // 0{...} → Socket.IO handshake
-    if (data.startsWith("0")) {
-      console.log("Handshake:", data);
-      return;
-    }
+    // 0{...} → handshake
+    if (data.startsWith("0")) return;
 
-    // 40 → WebSocket transport ready
+    // 40 → transport ready
     if (data === "40") {
-      console.log("Transport ready");
-
-      // ★ 名前送信（必須）
+      logWS("→ setName: " + myName);
       ws.send(`42["setName","${myName}"]`);
       return;
     }
@@ -61,6 +65,7 @@ document.getElementById("connectBtn").onclick = () => {
     // ping/pong
     if (data === "2") {
       ws.send("3");
+      logWS("→ pong");
       return;
     }
 
@@ -70,7 +75,6 @@ document.getElementById("connectBtn").onclick = () => {
     const payload = JSON.parse(data.slice(2));
     const event = payload[0];
 
-    // 初期データ
     if (event === "initRoom push") {
       const info = payload[1];
       ownerID = info.ownerID;
@@ -83,7 +87,6 @@ document.getElementById("connectBtn").onclick = () => {
       return;
     }
 
-    // 新規入室
     if (event === "newUser push") {
       const u = payload[1];
       users[u.uid] = u.userName;
@@ -91,21 +94,18 @@ document.getElementById("connectBtn").onclick = () => {
       return;
     }
 
-    // 退出
     if (event === "userLeave push") {
       delete users[payload[1]];
       renderUsers();
       return;
     }
 
-    // オーナー変更
     if (event === "changeOwner push") {
       ownerID = payload[1];
       renderUsers();
       return;
     }
 
-    // チャット
     if (event === "chat push") {
       const uid = payload[1];
       const text = payload[2];
@@ -122,5 +122,6 @@ document.getElementById("sendBtn").onclick = () => {
   if (!ws || ws.readyState !== 1) return;
 
   ws.send(`42["chat send","${text}",${Date.now()}]`);
+  logWS(`→ chat send: ${text}`);
   document.getElementById("msg").value = "";
 };

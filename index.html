@@ -8,7 +8,7 @@
   <style>
     body {
       font-family: "Segoe UI", sans-serif;
-      background: #0b1a33; /* 濃紺 */
+      background: #0b1a33;
       color: #ffffff;
       padding: 20px;
       margin: 0;
@@ -46,7 +46,7 @@
       background: #6bb6ff;
     }
 
-    #chat, #users {
+    #chat, #users, #wslog {
       background: #ffffff;
       color: #000000;
       border-radius: 6px;
@@ -55,12 +55,16 @@
       margin-top: 10px;
     }
 
-    #chat {
-      height: 300px;
-    }
+    #chat { height: 300px; }
+    #users { height: 150px; }
 
-    #users {
-      height: 150px;
+    #wslog {
+      background: #111a2b;
+      color: #a8c4ff;
+      border: 1px solid #2a3d5c;
+      height: 200px;
+      font-family: monospace;
+      font-size: 12px;
     }
 
     .section-title {
@@ -73,16 +77,14 @@
 
 <body>
 
-  <h1>PictChat</h1>
+  <h1>PictChat（ぴくとちゃっと）</h1>
 
-  <div>
-    <div class="section-title">名前</div>
-    <input id="myName" placeholder="名前を入力（例：Akito）">
+  <div class="section-title">名前</div>
+  <input id="myName" placeholder="名前を入力（例：Akito）">
 
-    <div class="section-title">部屋URL</div>
-    <input id="roomUrl" placeholder="https://pictsense.com/#!/xxxx-xxxx-xxxx">
-    <button id="connectBtn">接続</button>
-  </div>
+  <div class="section-title">部屋URL</div>
+  <input id="roomUrl" placeholder="https://pictsense.com/#!/xxxx-xxxx-xxxx">
+  <button id="connectBtn">接続</button>
 
   <div class="section-title">チャット</div>
   <div id="chat"></div>
@@ -92,6 +94,9 @@
 
   <div class="section-title">参加者</div>
   <div id="users"></div>
+
+  <div class="section-title">通信ログ</div>
+  <div id="wslog"></div>
 
 </body>
 </html>
