@@ -4,6 +4,18 @@ let ownerID = null;
 let myName = "";
 
 // ------------------------------
+// userNo 生成（pictsense と同じ方式）
+// ------------------------------
+function getUserNo() {
+  let n = localStorage.getItem("userNo");
+  if (!n) {
+    n = Math.floor(100000 + Math.random() * 900000); // 6桁
+    localStorage.setItem("userNo", n);
+  }
+  return n;
+}
+
+// ------------------------------
 // rid 抽出（強化版）
 // ------------------------------
 function extractRid(url) {
@@ -58,8 +70,11 @@ document.getElementById("connectBtn").onclick = () => {
     return;
   }
 
+  const userNo = getUserNo();
+  logWS("userNo = " + userNo);
+
   ws = new WebSocket(
-    `wss://wl.pictsense.com/socket.io/?rid=${rid}&EIO=4&transport=websocket`
+    `wss://wl.pictsense.com/socket.io/?userNo=${userNo}&rid=${rid}&EIO=4&transport=websocket`
   );
 
   ws.onopen = () => {
