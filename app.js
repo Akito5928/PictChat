@@ -56,25 +56,6 @@ function renderUsers() {
 }
 
 // ------------------------------
-// 部屋情報 API から roomNo を取得
-// ------------------------------
-async function fetchRoomNo(rid) {
-  const url = `https://pictsense.com/api/room/info?rid=${rid}`;
-  logWS("→ Fetch room info: " + url);
-
-  const res = await fetch(url);
-  if (!res.ok) {
-    logWS("❌ room info API エラー: " + res.status);
-    return null;
-  }
-
-  const json = await res.json();
-  logWS("← room info: " + JSON.stringify(json));
-
-  return json.roomNo || null;
-}
-
-// ------------------------------
 // 接続
 // ------------------------------
 document.getElementById("connectBtn").onclick = async () => {
@@ -89,21 +70,12 @@ document.getElementById("connectBtn").onclick = async () => {
     return;
   }
 
-  // roomNo を取得
-  const roomNo = await fetchRoomNo(rid);
-  logWS("roomNo = " + roomNo);
-
-  if (!roomNo) {
-    logWS("❌ roomNo が取得できませんでした。部屋が存在しない可能性があります。");
-    return;
-  }
-
   const userNo = getUserNo();
   logWS("userNo = " + userNo);
 
-  // WebSocket 接続（roomNo 付き）
+  // 🔥 正しい WebSocket URL（roomNo 不要）
   const wsUrl =
-    `wss://wl.pictsense.com/socket.io/?userNo=${userNo}&rid=${rid}&roomNo=${roomNo}&EIO=4&transport=websocket`;
+    `wss://wl.pictsense.com/socket.io/?userNo=${userNo}&rid=${rid}&EIO=4&transport=websocket`;
 
   logWS("→ Connect WS: " + wsUrl);
 
@@ -123,7 +95,7 @@ document.getElementById("connectBtn").onclick = async () => {
     if (data.startsWith("0")) return;
 
     // ------------------------------
-    // 40 → transport ready
+    // 40 → transport ready（join 成功）
     // ------------------------------
     if (data === "40") {
       logWS("→ setName: " + myName);
@@ -188,7 +160,7 @@ document.getElementById("connectBtn").onclick = async () => {
     }
 
     if (event === "visitorCount push") {
-      // ログだけ流す
+      // visitorCount はログだけでOK
       return;
     }
   };
