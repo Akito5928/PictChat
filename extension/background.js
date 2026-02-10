@@ -1,3 +1,5 @@
+console.log("pictsense_ws.js LOADED");
+
 let pictsenseTabId = null;
 let pictchatTabId = null;
 

@@ -1,8 +1,12 @@
 // pictchat が開かれたら pictsense を裏で開く
 chrome.runtime.sendMessage({ action: "openPictsense" });
 
-// UI → background 経由で pictsense_ws.js に橋渡し
+// UI → background
 window.addEventListener("message", (event) => {
+  // 他拡張やページ内部のメッセージを無視
+  if (!event.data || typeof event.data !== "object") return;
+  if (!event.data.type) return;
+
   const data = event.data;
 
   if (data.type === "connect") {
@@ -21,7 +25,7 @@ window.addEventListener("message", (event) => {
   }
 });
 
-// background → UI（pictsense_ws.js の結果を UI に返す）
+// background → UI
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.action === "uiLog") {
     window.postMessage({ type: "wsLog", text: msg.text }, "*");
