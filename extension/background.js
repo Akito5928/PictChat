@@ -1,11 +1,9 @@
 let pictsenseTabId = null;
 let pictchatTabId = null;
 
-// pictchat / pictsense 間のハブ
 chrome.runtime.onMessage.addListener((msg, sender) => {
-  // ① pictchat から最初に飛んでくる：pictsense を開く
+  // pictchat → pictsense を開く
   if (msg.action === "openPictsense") {
-    // pictchat のタブIDを記録
     if (sender.tab) {
       pictchatTabId = sender.tab.id;
     }
@@ -18,7 +16,6 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
       (tab) => {
         pictsenseTabId = tab.id;
 
-        // pictsense の読み込み完了を待ってから注入
         chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
           if (tabId === tab.id && info.status === "complete") {
             chrome.tabs.onUpdated.removeListener(listener);
@@ -33,12 +30,12 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
     );
   }
 
-  // ② pictchat → pictsense_ws.js（connect / chatSend）
+  // pictchat → pictsense_ws.js
   if ((msg.action === "connect" || msg.action === "chatSend") && pictsenseTabId) {
-    chrome.tabs.sendMessage(pictssenseTabId, msg);
+    chrome.tabs.sendMessage(pictsenseTabId, msg); // ← 修正ポイント
   }
 
-  // ③ pictsense_ws.js → pictchat（ログ / チャット / ユーザー一覧）
+  // pictsense_ws.js → pictchat
   if (msg.action === "uiLog" || msg.action === "uiChat" || msg.action === "uiUsers") {
     if (pictchatTabId) {
       chrome.tabs.sendMessage(pictchatTabId, msg);
