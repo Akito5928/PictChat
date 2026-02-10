@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "PictChat Extension",
+  "version": "1.0",
+  "permissions": ["tabs", "scripting"],
+  "host_permissions": [
+    "https://pictsense.com/*",
+    "https://*.pictsense.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://akito.github.io/pictchat/*"],
+      "js": ["content.js"]
+    }
+  ]
+}

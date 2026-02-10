@@ -1,12 +1,25 @@
 let ws = null;
 const users = {};
 let ownerID = null;
-let myName = "";
 let myUid = null;
 let entryApproved = false;
 
 const WR_SERVERS = ["wr1", "wr2", "wr3"];
-const loginToken = "eeab49d9f22e9e36d98133bedccde4ad827606fb"; // ← ★追加
+
+// ------------------------------
+// UIへの出力を postMessage で返す
+// ------------------------------
+function logWS(msg) {
+  window.postMessage({ type: "wsLog", text: msg }, "*");
+}
+
+function addChat(name, text) {
+  window.postMessage({ type: "chatPush", name, text }, "*");
+}
+
+function renderUsers() {
+  window.postMessage({ type: "userList", users: Object.values(users) }, "*");
+}
 
 // ------------------------------
 // userNo 生成（6桁）
@@ -29,38 +42,6 @@ function extractRid(url) {
 }
 
 // ------------------------------
-// 通信ログ
-// ------------------------------
-function logWS(text) {
-  const div = document.getElementById("wslog");
-  const time = new Date().toLocaleTimeString();
-  div.innerHTML += `<div>[${time}] ${text}</div>`;
-  div.scrollTop = div.scrollHeight;
-}
-
-// ------------------------------
-// チャット表示
-// ------------------------------
-function addChat(name, text) {
-  const div = document.getElementById("chat");
-  div.innerHTML += `<div><b>${name}:</b> ${text}</div>`;
-  div.scrollTop = div.scrollHeight;
-}
-
-// ------------------------------
-// 参加者表示
-// ------------------------------
-function renderUsers() {
-  const div = document.getElementById("users");
-  div.innerHTML = "";
-  for (const uid in users) {
-    const name = users[uid];
-    const crown = uid === ownerID ? "👑 " : "";
-    div.innerHTML += `<div>${crown}${name}</div>`;
-  }
-}
-
-// ------------------------------
 // wr1 / wr2 / wr3 を総当たりして部屋サーバーを探す
 // ------------------------------
 async function detectCorrectWR(rid, userNo, myUid) {
@@ -68,7 +49,7 @@ async function detectCorrectWR(rid, userNo, myUid) {
 
   for (const wr of WR_SERVERS) {
     const testUrl =
-      `wss://${wr}.pictsense.com/socket.io/?userNo=${userNo}&rid=${rid}&myUid=${myUid}&loginToken=${loginToken}&EIO=4&transport=websocket`;
+      `wss://${wr}.pictsense.com/socket.io/?userNo=${userNo}&rid=${rid}&myUid=${myUid}&EIO=4&transport=websocket`;
 
     logWS(`→ テスト接続: ${testUrl}`);
 
@@ -117,11 +98,11 @@ async function detectCorrectWR(rid, userNo, myUid) {
 }
 
 // ------------------------------
-// 本接続（あなたの既存ロジック）
+// 本接続
 // ------------------------------
-function connectToWR(wr, rid, userNo, myUid) {
+function connectToWR(wr, rid, userNo, myUid, myName) {
   const wsUrl =
-    `wss://${wr}.pictsense.com/socket.io/?userNo=${userNo}&rid=${rid}&myUid=${myUid}&loginToken=${loginToken}&EIO=4&transport=websocket`;
+    `wss://${wr}.pictsense.com/socket.io/?userNo=${userNo}&rid=${rid}&myUid=${myUid}&EIO=4&transport=websocket`;
 
   logWS("→ 本接続: " + wsUrl);
 
@@ -156,7 +137,6 @@ function connectToWR(wr, rid, userNo, myUid) {
       if (approved) {
         entryApproved = true;
         logWS("✔ 入室申請が承認されました (uid=" + uid + ")");
-
         ws.send(`42["setName","${myName}"]`);
         logWS(`→ setName: ${myName}`);
       } else {
@@ -182,10 +162,6 @@ function connectToWR(wr, rid, userNo, myUid) {
 
       info.userList.forEach(u => {
         users[u.uid] = u.userName;
-
-        if (u.userName === myName && myUid === u.uid) {
-          logWS("✔ myUid 確認済 (initRoom) = " + myUid);
-        }
       });
 
       renderUsers();
@@ -196,11 +172,6 @@ function connectToWR(wr, rid, userNo, myUid) {
     if (event === "newUser push") {
       const u = payload[1];
       users[u.uid] = u.userName;
-
-      if (u.uid === myUid) {
-        logWS("✔ myUid 確認済 (newUser) = " + myUid);
-      }
-
       renderUsers();
       return;
     }
@@ -244,39 +215,33 @@ function connectToWR(wr, rid, userNo, myUid) {
 }
 
 // ------------------------------
-// 接続ボタン
+// UIからのメッセージを受け取る
 // ------------------------------
-document.getElementById("connectBtn").onclick = async () => {
-  const url = document.getElementById("roomUrl").value;
-  myName = document.getElementById("myName").value || "名無し";
+window.addEventListener("message", async (event) => {
+  const data = event.data;
 
-  const rid = extractRid(url);
-  const userNo = getUserNo();
-  myUid = crypto.randomUUID();
+  if (data.type === "connect") {
+    const myName = data.myName;
+    const rid = extractRid(data.roomUrl);
+    const userNo = getUserNo();
+    myUid = crypto.randomUUID();
 
-  logWS("RID = " + rid);
-  logWS("userNo = " + userNo);
-  logWS("myUid = " + myUid);
-  logWS("loginToken = " + loginToken);
+    logWS("RID = " + rid);
+    logWS("userNo = " + userNo);
+    logWS("myUid = " + myUid);
 
-  const wr = await detectCorrectWR(rid, userNo, myUid);
+    const wr = await detectCorrectWR(rid, userNo, myUid);
 
-  if (!wr) {
-    logWS("❌ 部屋サーバーが見つかりませんでした");
-    return;
+    if (!wr) {
+      logWS("❌ 部屋サーバーが見つかりませんでした");
+      return;
+    }
+
+    connectToWR(wr, rid, userNo, myUid, myName);
   }
 
-  connectToWR(wr, rid, userNo, myUid);
-};
-
-// ------------------------------
-// チャット送信
-// ------------------------------
-document.getElementById("sendBtn").onclick = () => {
-  const text = document.getElementById("msg").value;
-  if (!ws || ws.readyState !== 1) return;
-
-  ws.send(`42["chat send","${text}",${Date.now()}]`);
-  logWS(`→ chat send: ${text}`);
-  document.getElementById("msg").value = "";
-};
+  if (data.type === "chatSend" && ws) {
+    ws.send(`42["chat send","${data.text}",${Date.now()}]`);
+    logWS(`→ chat send: ${data.text}`);
+  }
+});
