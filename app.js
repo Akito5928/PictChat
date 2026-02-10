@@ -6,12 +6,12 @@ let myUid = null;
 let entryApproved = false;
 
 // ------------------------------
-// userNo 生成（pictsense と同じ）
+// userNo 生成（6桁）
 // ------------------------------
 function getUserNo() {
   let n = localStorage.getItem("userNo");
   if (!n) {
-    n = Math.floor(100000 + Math.random() * 900000); // 6桁
+    n = Math.floor(100000 + Math.random() * 900000);
     localStorage.setItem("userNo", n);
   }
   return n;
@@ -60,7 +60,7 @@ function renderUsers() {
 // ------------------------------
 // 接続
 // ------------------------------
-document.getElementById("connectBtn").onclick = async () => {
+document.getElementById("connectBtn").onclick = () => {
   const url = document.getElementById("roomUrl").value;
   myName = document.getElementById("myName").value || "名無し";
 
@@ -73,23 +73,22 @@ document.getElementById("connectBtn").onclick = async () => {
   }
 
   const userNo = getUserNo();
+  myUid = crypto.randomUUID(); // 🔥 pictsense が使っている myUid 相当
+  entryApproved = false;
+
   logWS("userNo = " + userNo);
+  logWS("myUid  = " + myUid);
 
   const wsUrl =
-    `wss://wl.pictsense.com/socket.io/?userNo=${userNo}&rid=${rid}&EIO=4&transport=websocket`;
+    `wss://wl.pictsense.com/socket.io/?userNo=${userNo}&rid=${rid}&myUid=${myUid}&EIO=4&transport=websocket`;
 
   logWS("→ Connect WS: " + wsUrl);
 
   ws = new WebSocket(wsUrl);
-  entryApproved = false;
-  myUid = null;
 
   ws.onopen = () => {
     logWS("→ WebSocket connected");
-
-    // 入室申請制の部屋に対応（自由入室でも無害）
-    ws.send(`42["entryRoomRequest send","${myName}"]`);
-    logWS(`→ entryRoomRequest send: ${myName}`);
+    // ここではまだ何も送らない（40 を待つ）
   };
 
   ws.onmessage = (e) => {
@@ -109,7 +108,6 @@ document.getElementById("connectBtn").onclick = async () => {
         entryApproved = true;
         logWS("✔ 入室申請が承認されました (uid=" + uid + ")");
 
-        // 名前設定を送る
         ws.send(`42["setName","${myName}"]`);
         logWS(`→ setName: ${myName}`);
       } else {
@@ -118,12 +116,20 @@ document.getElementById("connectBtn").onclick = async () => {
       return;
     }
 
-    // 40 → transport ready（自由入室の部屋）
+    // 40 → transport ready
     if (data === "40") {
-      if (!entryApproved) {
-        ws.send(`42["setName","${myName}"]`);
-        logWS(`→ setName: ${myName}`);
-      }
+      logWS("✔ 40 received (transport ready)");
+
+      // 🔥 ここで初めて部屋関連イベントを送る
+      // 1) まず入室申請を送る（申請制の部屋用）
+      ws.send(`42["entryRoomRequest send","${myName}"]`);
+      logWS(`→ entryRoomRequest send: ${myName}`);
+
+      // 2) 自由入室の部屋では entryRoomRequest が無視されるので、
+      //    そのまま setName も送っておく（両対応）
+      ws.send(`42["setName","${myName}"]`);
+      logWS(`→ setName (fallback): ${myName}`);
+
       return;
     }
 
@@ -140,9 +146,7 @@ document.getElementById("connectBtn").onclick = async () => {
     const payload = JSON.parse(data.slice(2));
     const event = payload[0];
 
-    // ------------------------------
     // initRoom push
-    // ------------------------------
     if (event === "initRoom push") {
       const info = payload[1];
       ownerID = info.ownerID;
@@ -150,10 +154,8 @@ document.getElementById("connectBtn").onclick = async () => {
       info.userList.forEach(u => {
         users[u.uid] = u.userName;
 
-        // 自分の uid を特定
-        if (u.userName === myName && myUid === null) {
-          myUid = u.uid;
-          logWS("✔ myUid (initRoom) = " + myUid);
+        if (u.userName === myName && myUid === u.uid) {
+          logWS("✔ myUid 確認済 (initRoom) = " + myUid);
         }
       });
 
@@ -162,26 +164,20 @@ document.getElementById("connectBtn").onclick = async () => {
       return;
     }
 
-    // ------------------------------
     // newUser push
-    // ------------------------------
     if (event === "newUser push") {
       const u = payload[1];
       users[u.uid] = u.userName;
 
-      // 自分が newUser として追加された場合
-      if (u.userName === myName && myUid === null) {
-        myUid = u.uid;
-        logWS("✔ myUid (newUser) = " + myUid);
+      if (u.uid === myUid) {
+        logWS("✔ myUid 確認済 (newUser) = " + myUid);
       }
 
       renderUsers();
       return;
     }
 
-    // ------------------------------
     // userLeave push
-    // ------------------------------
     if (event === "userLeave push") {
       const uid = payload[1];
       delete users[uid];
@@ -189,18 +185,14 @@ document.getElementById("connectBtn").onclick = async () => {
       return;
     }
 
-    // ------------------------------
     // changeOwner push
-    // ------------------------------
     if (event === "changeOwner push") {
       ownerID = payload[1];
       renderUsers();
       return;
     }
 
-    // ------------------------------
     // kick push
-    // ------------------------------
     if (event === "kick push") {
       const ownerUid = payload[1];
       const kickedUid = payload[2];
@@ -216,9 +208,7 @@ document.getElementById("connectBtn").onclick = async () => {
       return;
     }
 
-    // ------------------------------
     // chat push
-    // ------------------------------
     if (event === "chat push") {
       const uid = payload[1];
       const text = payload[2];
@@ -226,8 +216,6 @@ document.getElementById("connectBtn").onclick = async () => {
       addChat(name, text);
       return;
     }
-
-    // visitorCount push などはログだけで十分ならスルー
   };
 };
 
