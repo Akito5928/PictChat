@@ -1,8 +1,14 @@
 let pictsenseTabId = null;
+let pictchatTabId = null;
 
-// pictsense.com を裏で開いて、読み込み完了後に pictsense_ws.js を注入
 chrome.runtime.onMessage.addListener((msg, sender) => {
+  // pictchat から最初に飛んでくる
   if (msg.action === "openPictsense") {
+    // pictchat のタブIDを記録
+    if (sender.tab) {
+      pictchatTabId = sender.tab.id;
+    }
+
     chrome.tabs.create(
       {
         url: "https://pictsense.com",
@@ -11,12 +17,10 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
       (tab) => {
         pictsenseTabId = tab.id;
 
-        // ページ読み込み完了を待つ
         chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
           if (tabId === tab.id && info.status === "complete") {
             chrome.tabs.onUpdated.removeListener(listener);
 
-            // pictsense_ws.js を注入
             chrome.scripting.executeScript({
               target: { tabId: tab.id },
               files: ["pictsense_ws.js"]
@@ -27,15 +31,15 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
     );
   }
 
-  // pictchat → pictsense_ws.js への橋渡し
+  // pictchat → pictsense_ws.js
   if ((msg.action === "connect" || msg.action === "chatSend") && pictsenseTabId) {
     chrome.tabs.sendMessage(pictsenseTabId, msg);
   }
 
-  // pictsense_ws.js → pictchat への橋渡し
+  // pictsense_ws.js → pictchat
   if (msg.action === "uiLog" || msg.action === "uiChat" || msg.action === "uiUsers") {
-    if (sender.tab) {
-      chrome.tabs.sendMessage(sender.tab.id, msg);
+    if (pictchatTabId) {
+      chrome.tabs.sendMessage(pictchatTabId, msg);
     }
   }
 });
