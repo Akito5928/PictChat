@@ -5,6 +5,8 @@ let myName = "";
 let myUid = null;
 let entryApproved = false;
 
+const WR_SERVERS = ["wr1", "wr2", "wr3"];
+
 // ------------------------------
 // userNo 生成（6桁）
 // ------------------------------
@@ -58,37 +60,74 @@ function renderUsers() {
 }
 
 // ------------------------------
-// 接続
+// wr1 / wr2 / wr3 を総当たりして部屋サーバーを探す
 // ------------------------------
-document.getElementById("connectBtn").onclick = () => {
-  const url = document.getElementById("roomUrl").value;
-  myName = document.getElementById("myName").value || "名無し";
+async function detectCorrectWR(rid, userNo, myUid) {
+  logWS("🔍 wr1 / wr2 / wr3 を総当たりして部屋サーバーを探索中…");
 
-  const rid = extractRid(url);
-  logWS("RID = " + rid);
+  for (const wr of WR_SERVERS) {
+    const testUrl =
+      `wss://${wr}.pictsense.com/socket.io/?userNo=${userNo}&rid=${rid}&myUid=${myUid}&EIO=4&transport=websocket`;
 
-  if (!rid) {
-    logWS("❌ rid が抽出できませんでした。URL を確認してください。");
-    return;
+    logWS(`→ テスト接続: ${testUrl}`);
+
+    const testWS = new WebSocket(testUrl);
+
+    const result = await new Promise(resolve => {
+      let resolved = false;
+
+      testWS.onmessage = (e) => {
+        if (resolved) return;
+
+        if (e.data.startsWith("0")) {
+          const json = JSON.parse(e.data.slice(1));
+
+          if (json.upgrades && json.upgrades.includes("websocket")) {
+            resolved = true;
+            resolve({ ok: true, wr });
+            testWS.close();
+          } else {
+            resolved = true;
+            resolve({ ok: false, wr });
+            testWS.close();
+          }
+        }
+      };
+
+      testWS.onerror = () => {
+        if (!resolved) resolve({ ok: false, wr });
+      };
+
+      setTimeout(() => {
+        if (!resolved) resolve({ ok: false, wr });
+      }, 1500);
+    });
+
+    if (result.ok) {
+      logWS(`🎯 ヒット！ → ${result.wr} が部屋サーバーです`);
+      return result.wr;
+    } else {
+      logWS(`× ${result.wr} は違いました`);
+    }
   }
 
-  const userNo = getUserNo();
-  myUid = crypto.randomUUID(); // 🔥 pictsense が使っている myUid 相当
-  entryApproved = false;
+  logWS("❌ wr1 / wr2 / wr3 のどれにも部屋が存在しませんでした");
+  return null;
+}
 
-  logWS("userNo = " + userNo);
-  logWS("myUid  = " + myUid);
-
+// ------------------------------
+// 本接続（あなたの既存ロジック）
+// ------------------------------
+function connectToWR(wr, rid, userNo, myUid) {
   const wsUrl =
-    `wss://wl.pictsense.com/socket.io/?userNo=${userNo}&rid=${rid}&myUid=${myUid}&EIO=4&transport=websocket`;
+    `wss://${wr}.pictsense.com/socket.io/?userNo=${userNo}&rid=${rid}&myUid=${myUid}&EIO=4&transport=websocket`;
 
-  logWS("→ Connect WS: " + wsUrl);
+  logWS("→ 本接続: " + wsUrl);
 
   ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
     logWS("→ WebSocket connected");
-    // ここではまだ何も送らない（40 を待つ）
   };
 
   ws.onmessage = (e) => {
@@ -97,6 +136,18 @@ document.getElementById("connectBtn").onclick = () => {
 
     // 0{...} → handshake
     if (data.startsWith("0")) return;
+
+    // 40 → transport ready
+    if (data === "40") {
+      logWS("✔ 40 received (transport ready)");
+
+      ws.send(`42["entryRoomRequest send","${myName}"]`);
+      logWS(`→ entryRoomRequest send: ${myName}`);
+
+      ws.send(`42["setName","${myName}"]`);
+      logWS(`→ setName (fallback): ${myName}`);
+      return;
+    }
 
     // 430[...] → 入室申請の承認結果
     if (data.startsWith("430")) {
@@ -113,23 +164,6 @@ document.getElementById("connectBtn").onclick = () => {
       } else {
         logWS("❌ 入室が拒否されました");
       }
-      return;
-    }
-
-    // 40 → transport ready
-    if (data === "40") {
-      logWS("✔ 40 received (transport ready)");
-
-      // 🔥 ここで初めて部屋関連イベントを送る
-      // 1) まず入室申請を送る（申請制の部屋用）
-      ws.send(`42["entryRoomRequest send","${myName}"]`);
-      logWS(`→ entryRoomRequest send: ${myName}`);
-
-      // 2) 自由入室の部屋では entryRoomRequest が無視されるので、
-      //    そのまま setName も送っておく（両対応）
-      ws.send(`42["setName","${myName}"]`);
-      logWS(`→ setName (fallback): ${myName}`);
-
       return;
     }
 
@@ -217,6 +251,31 @@ document.getElementById("connectBtn").onclick = () => {
       return;
     }
   };
+}
+
+// ------------------------------
+// 接続ボタン
+// ------------------------------
+document.getElementById("connectBtn").onclick = async () => {
+  const url = document.getElementById("roomUrl").value;
+  myName = document.getElementById("myName").value || "名無し";
+
+  const rid = extractRid(url);
+  const userNo = getUserNo();
+  myUid = crypto.randomUUID();
+
+  logWS("RID = " + rid);
+  logWS("userNo = " + userNo);
+  logWS("myUid = " + myUid);
+
+  const wr = await detectCorrectWR(rid, userNo, myUid);
+
+  if (!wr) {
+    logWS("❌ 部屋サーバーが見つかりませんでした");
+    return;
+  }
+
+  connectToWR(wr, rid, userNo, myUid);
 };
 
 // ------------------------------
