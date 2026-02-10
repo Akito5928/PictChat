@@ -7,18 +7,18 @@ let entryApproved = false;
 const WR_SERVERS = ["wr1", "wr2", "wr3"];
 
 // ------------------------------
-// UIへの出力を postMessage で返す
+// UIへの出力を background 経由で返す
 // ------------------------------
 function logWS(msg) {
-  window.postMessage({ type: "wsLog", text: msg }, "*");
+  chrome.runtime.sendMessage({ action: "uiLog", text: msg });
 }
 
 function addChat(name, text) {
-  window.postMessage({ type: "chatPush", name, text }, "*");
+  chrome.runtime.sendMessage({ action: "uiChat", name, text });
 }
 
 function renderUsers() {
-  window.postMessage({ type: "userList", users: Object.values(users) }, "*");
+  chrome.runtime.sendMessage({ action: "uiUsers", users: Object.values(users) });
 }
 
 // ------------------------------
@@ -215,14 +215,12 @@ function connectToWR(wr, rid, userNo, myUid, myName) {
 }
 
 // ------------------------------
-// UIからのメッセージを受け取る
+// background からのメッセージを受け取る
 // ------------------------------
-window.addEventListener("message", async (event) => {
-  const data = event.data;
-
-  if (data.type === "connect") {
-    const myName = data.myName;
-    const rid = extractRid(data.roomUrl);
+chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
+  if (msg.action === "connect") {
+    const myName = msg.myName;
+    const rid = extractRid(msg.roomUrl);
     const userNo = getUserNo();
     myUid = crypto.randomUUID();
 
@@ -240,8 +238,8 @@ window.addEventListener("message", async (event) => {
     connectToWR(wr, rid, userNo, myUid, myName);
   }
 
-  if (data.type === "chatSend" && ws) {
-    ws.send(`42["chat send","${data.text}",${Date.now()}]`);
-    logWS(`→ chat send: ${data.text}`);
+  if (msg.action === "chatSend" && ws) {
+    ws.send(`42["chat send","${msg.text}",${Date.now()}]`);
+    logWS(`→ chat send: ${msg.text}`);
   }
 });
