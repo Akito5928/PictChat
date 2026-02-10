@@ -6,6 +6,7 @@ let myUid = null;
 let entryApproved = false;
 
 const WR_SERVERS = ["wr1", "wr2", "wr3"];
+const loginToken = "eeab49d9f22e9e36d98133bedccde4ad827606fb"; // ← ★追加
 
 // ------------------------------
 // userNo 生成（6桁）
@@ -67,7 +68,7 @@ async function detectCorrectWR(rid, userNo, myUid) {
 
   for (const wr of WR_SERVERS) {
     const testUrl =
-      `wss://${wr}.pictsense.com/socket.io/?userNo=${userNo}&rid=${rid}&myUid=${myUid}&EIO=4&transport=websocket`;
+      `wss://${wr}.pictsense.com/socket.io/?userNo=${userNo}&rid=${rid}&myUid=${myUid}&loginToken=${loginToken}&EIO=4&transport=websocket`;
 
     logWS(`→ テスト接続: ${testUrl}`);
 
@@ -120,7 +121,7 @@ async function detectCorrectWR(rid, userNo, myUid) {
 // ------------------------------
 function connectToWR(wr, rid, userNo, myUid) {
   const wsUrl =
-    `wss://${wr}.pictsense.com/socket.io/?userNo=${userNo}&rid=${rid}&myUid=${myUid}&EIO=4&transport=websocket`;
+    `wss://${wr}.pictsense.com/socket.io/?userNo=${userNo}&rid=${rid}&myUid=${myUid}&loginToken=${loginToken}&EIO=4&transport=websocket`;
 
   logWS("→ 本接続: " + wsUrl);
 
@@ -134,10 +135,8 @@ function connectToWR(wr, rid, userNo, myUid) {
     const data = e.data;
     logWS(`← ${data}`);
 
-    // 0{...} → handshake
     if (data.startsWith("0")) return;
 
-    // 40 → transport ready
     if (data === "40") {
       logWS("✔ 40 received (transport ready)");
 
@@ -149,7 +148,6 @@ function connectToWR(wr, rid, userNo, myUid) {
       return;
     }
 
-    // 430[...] → 入室申請の承認結果
     if (data.startsWith("430")) {
       const payload = JSON.parse(data.slice(3));
       const approved = payload[0];
@@ -167,20 +165,17 @@ function connectToWR(wr, rid, userNo, myUid) {
       return;
     }
 
-    // ping/pong
     if (data === "2") {
       ws.send("3");
       logWS("→ pong");
       return;
     }
 
-    // 42[...] イベント
     if (!data.startsWith("42")) return;
 
     const payload = JSON.parse(data.slice(2));
     const event = payload[0];
 
-    // initRoom push
     if (event === "initRoom push") {
       const info = payload[1];
       ownerID = info.ownerID;
@@ -198,7 +193,6 @@ function connectToWR(wr, rid, userNo, myUid) {
       return;
     }
 
-    // newUser push
     if (event === "newUser push") {
       const u = payload[1];
       users[u.uid] = u.userName;
@@ -211,7 +205,6 @@ function connectToWR(wr, rid, userNo, myUid) {
       return;
     }
 
-    // userLeave push
     if (event === "userLeave push") {
       const uid = payload[1];
       delete users[uid];
@@ -219,14 +212,12 @@ function connectToWR(wr, rid, userNo, myUid) {
       return;
     }
 
-    // changeOwner push
     if (event === "changeOwner push") {
       ownerID = payload[1];
       renderUsers();
       return;
     }
 
-    // kick push
     if (event === "kick push") {
       const ownerUid = payload[1];
       const kickedUid = payload[2];
@@ -242,7 +233,6 @@ function connectToWR(wr, rid, userNo, myUid) {
       return;
     }
 
-    // chat push
     if (event === "chat push") {
       const uid = payload[1];
       const text = payload[2];
@@ -267,6 +257,7 @@ document.getElementById("connectBtn").onclick = async () => {
   logWS("RID = " + rid);
   logWS("userNo = " + userNo);
   logWS("myUid = " + myUid);
+  logWS("loginToken = " + loginToken);
 
   const wr = await detectCorrectWR(rid, userNo, myUid);
 
