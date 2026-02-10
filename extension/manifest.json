@@ -2,10 +2,7 @@
   "manifest_version": 3,
   "name": "PictChat Extension",
   "version": "1.0",
-  "permissions": [
-    "tabs",
-    "scripting"
-  ],
+  "permissions": ["tabs", "scripting"],
   "host_permissions": [
     "https://pictsense.com/*",
     "https://*.pictsense.com/*"
@@ -25,11 +22,11 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": [
-        "content.js",
-        "pictsense_ws.js"
-      ],
-      "matches": ["<all_urls>"]
+      "resources": ["pictsense_ws.js"],
+      "matches": [
+        "https://pictsense.com/*",
+        "https://*.pictsense.com/*"
+      ]
     }
   ]
 }
